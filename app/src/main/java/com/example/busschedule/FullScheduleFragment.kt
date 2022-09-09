@@ -20,13 +20,28 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.coroutineScope
+import androidx.navigation.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.busschedule.databinding.FullScheduleFragmentBinding
+import com.example.busschedule.viewmodels.BusScheduleViewModel
+import com.example.busschedule.viewmodels.BusScheduleViewModelFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 class FullScheduleFragment: Fragment() {
 
     private var _binding: FullScheduleFragmentBinding? = null
+
+    private val viewModel: BusScheduleViewModel by activityViewModels {
+        BusScheduleViewModelFactory(
+            (activity?.application as BusScheduleApplication).database.scheduleDao()
+        )
+    }
 
     private val binding get() = _binding!!
 
@@ -38,14 +53,26 @@ class FullScheduleFragment: Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         _binding = FullScheduleFragmentBinding.inflate(inflater, container, false)
-        val view = binding.root
-        return view
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         recyclerView = binding.recyclerView
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
+        val busStopAdapter = BusStopAdapter {
+            val action =
+                FullScheduleFragmentDirections.actionFullScheduleFragmentToStopScheduleFragment((it.stopName))
+            view.findNavController().navigate(action)
+        }
+        recyclerView.adapter = busStopAdapter
+        GlobalScope.launch(Dispatchers.IO) {
+            lifecycle.coroutineScope.launch {
+                viewModel.fullSchedule().collect() {
+                    busStopAdapter.submitList(it)
+                }
+            }
+        }
     }
 
     override fun onDestroyView() {
